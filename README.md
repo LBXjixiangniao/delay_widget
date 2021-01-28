@@ -57,4 +57,4 @@ DelayLayoutAndPaintWidget(
 
 ### 效果
 example中列表优化前后滚动对比，可以看到cpu部分明显将一帧的高耗时分摊到多帧上了
-![](read_me_image/common.jpg) ![w:300](read_me_image/optimize.jpg)
+![](read_me_image/common.jpg) ![](read_me_image/optimize.jpg)
