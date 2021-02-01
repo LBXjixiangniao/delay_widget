@@ -31,6 +31,7 @@ class _OptimizePageState extends CommonPageState {
       width: width,
       delayManager: managerTwo,
       addRepaintBoundary: false,
+      isScrollalbeItem: true,
       child: super.detailWidget(info, width, height),
     );
   }
@@ -49,6 +50,8 @@ class _OptimizePageState extends CommonPageState {
   Widget item(GridInfo info) {
     return DelayBuildWidget(
       delayManager: manager,
+      isScrollalbeItem: false,
+      placeholder: Container(color: Colors.red,),
       builder: (_) => super.item(info),
     );
   }

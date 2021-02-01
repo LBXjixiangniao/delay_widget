@@ -8,6 +8,8 @@ class DelayLayoutAndPaintWidget extends SingleChildRenderObjectWidget {
   final double height;
   //DelayBuildChild对应的RenderObject是否是repaintBoundary
   final bool addRepaintBoundary;
+  //是否可滚动的
+  final bool isScrollalbeItem;
   DelayLayoutAndPaintWidget({
     Key key,
     Widget child,
@@ -15,6 +17,7 @@ class DelayLayoutAndPaintWidget extends SingleChildRenderObjectWidget {
     @required this.width,
     @required this.height,
     this.addRepaintBoundary = true,
+    this.isScrollalbeItem = false,
   })  : assert(width != null && height != null),
         super(
           key: key,
@@ -52,6 +55,8 @@ class DelayLayoutAndPaintWidget extends SingleChildRenderObjectWidget {
       width: width,
       height: height,
       addRepaintBoundary: addRepaintBoundary,
+      context: context,
+      isScrollalbeItem: isScrollalbeItem,
     );
     if (delayManager == null) {
       //往上寻找_BuildDelayMarkerElement并获取DelayManager
@@ -67,7 +72,7 @@ class DelayLayoutAndPaintWidget extends SingleChildRenderObjectWidget {
   void updateRenderObject(BuildContext context, covariant _LayoutAndPaintDelayRenderObject renderObject) {
     //buildManager在element中更新
     // renderObject.buildManager = buildManager;
-
+    renderObject.isScrollalbeItem = isScrollalbeItem;
     renderObject.width = width;
     renderObject.height = height;
     renderObject.addRepaintBoundary = addRepaintBoundary;
@@ -193,11 +198,19 @@ class _LayoutAndPaintDelayRenderObject extends RenderProxyBox {
   bool addRepaintBoundary;
   //标识是否已经paint过了，因为如果还没paint过，则_needsPaint为true，这时候调用markNeedsPaint会被忽略
   bool _hadPainted = false;
+  //是否显示出来了，则真正paint出来了
+  bool isVisible = false;
+  //是否可滚动的
+  bool isScrollalbeItem;
+
+  BuildContext context;
   _LayoutAndPaintDelayRenderObject({
+    @required this.context,
     this.delayManager,
     this.width,
     this.height,
     this.addRepaintBoundary,
+    this.isScrollalbeItem,
   }) : assert(width != null && height != null) {
     info = _LayoutAndPaintAction(markNeedsLayout: () {
       if (this.attached) {
@@ -228,6 +241,16 @@ class _LayoutAndPaintDelayRenderObject extends RenderProxyBox {
 
   @override
   void markNeedsLayout() {
+    if (!this.attached) return;
+    if (isScrollalbeItem) {
+      if (Scrollable.recommendDeferredLoadingForContext(context)) {
+        //滚动太快了，下一帧再判断是否markNeedsLayout
+        SchedulerBinding.instance.scheduleFrameCallback((_) {
+          scheduleMicrotask(() => markNeedsLayout());
+        });
+        return;
+      }
+    }
     if (info.currentStatus != _LayoutAndPaintStatus.layout) {
       info.nextStatus = _LayoutAndPaintStatus.layout;
       addBuildInfoToManager();
@@ -250,6 +273,16 @@ class _LayoutAndPaintDelayRenderObject extends RenderProxyBox {
 
   @override
   void markNeedsPaint() {
+    if (!this.attached) return;
+    if (isScrollalbeItem) {
+      if (Scrollable.recommendDeferredLoadingForContext(context)) {
+        //滚动太快了，下一帧再判断是否markNeedsPaint
+        SchedulerBinding.instance.scheduleFrameCallback((_) {
+          scheduleMicrotask(() => markNeedsPaint());
+        });
+        return;
+      }
+    }
     if (info.currentStatus == _LayoutAndPaintStatus.idle && info.nextStatus == _LayoutAndPaintStatus.idle) {
       info.nextStatus = _LayoutAndPaintStatus.paint;
       addBuildInfoToManager();
@@ -257,10 +290,21 @@ class _LayoutAndPaintDelayRenderObject extends RenderProxyBox {
   }
 
   @override
+  bool hitTest(BoxHitTestResult result, {Offset position}) {
+    if (isVisible) {
+      return super.hitTest(result, position: position);
+    }
+    return false;
+  }
+
+  @override
   void paint(PaintingContext context, Offset offset) {
     _hadPainted = true;
     if (info.list == null || info.currentStatus == _LayoutAndPaintStatus.paint) {
+      isVisible = true;
       super.paint(context, offset);
+    } else {
+      isVisible = false;
     }
   }
 
